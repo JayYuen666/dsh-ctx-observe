@@ -1,0 +1,72 @@
+name: publish
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 登录 registry（跨仓读私有库包用 read:packages 的 PAT）
+        env:
+          TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TOKEN_TIDY="$(printf '%s' "$TOKEN" | tr -d '\r\n[:space:]')"
+          if [ -z "$TOKEN_TIDY" ]; then echo "TOKEN 是空的——secret 没配上？"; exit 1; fi
+          if [ "$TOKEN" != "$TOKEN_TIDY" ]; then echo "注意：secret 里含空白/换行，已剔除后使用"; fi
+          case "$TOKEN_TIDY" in
+            ghp_*) echo "token 形态：classic PAT（Packages 的 npm 渠道支持）";;
+            github_pat_*) echo "token 形态：fine-grained PAT（Packages 的 npm 渠道要的是 classic）";;
+            *) echo "token 形态：前缀不是 ghp_/github_pat_，多半不是 GitHub token";;
+          esac
+          junk=$(printf %s "$TOKEN_TIDY" | tr -d "A-Za-z0-9_-" | wc -c | tr -d " ")
+          echo "token 度量：长度=${#TOKEN_TIDY}（classic PAT 是 40）；非法字符数=$junk"
+          if [ "$junk" != "0" ]; then
+            echo "凭据里混进了非 token 字符（引号、说明文字之类）——请只贴 ghp_ 开头那一串，不要带引号"
+            exit 1
+          fi
+          grep -v "npm.pkg.github.com/:_authToken" "$HOME/.npmrc" > "$HOME/.npmrc.tmp" || true
+          if [ -f "$HOME/.npmrc.tmp" ]; then mv "$HOME/.npmrc.tmp" "$HOME/.npmrc"; fi
+          printf '//npm.pkg.github.com/:_authToken=%s\n' "$TOKEN_TIDY" >> "$HOME/.npmrc"
+      - name: registry 预检（读侧凭据能否取到库包）
+        env:
+          TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TOKEN_TIDY="$(printf '%s' "$TOKEN" | tr -d '\r\n[:space:]')"
+          if [ -z "$TOKEN_TIDY" ]; then echo "TOKEN 是空的——secret 没配上？"; exit 1; fi
+          if [ "$TOKEN" != "$TOKEN_TIDY" ]; then echo "注意：secret 里含空白/换行，已剔除后使用"; fi
+          url="https://npm.pkg.github.com/@jayyuen666%2fdsh-plugin-shared"
+          out="$RUNNER_TEMP/registry-probe.json"
+          hdr="$RUNNER_TEMP/registry-probe.hdr"
+          # 带凭据与不带凭据各打一次：本机对照下"无凭据"是 401，runner 上若连无凭据都非 401，
+          # 红就不在凭据而在路径（代理/边缘层），两者的修法完全不同。
+          code_with=$(curl -s -o "$out" -D "$hdr" -w "%{http_code}" -H "Authorization: Bearer $TOKEN_TIDY" "$url")
+          echo "带凭据：HTTP $code_with｜$(head -c 120 "$out" | tr "\n" " ")"
+          grep -iE "^(server|via|content-type):" "$hdr" | tr -d "\r" | sed "s/^/    /"
+          code_without=$(curl -s -o "$out" -D "$hdr" -w "%{http_code}" "$url")
+          echo "无凭据对照：HTTP $code_without｜$(head -c 120 "$out" | tr "\n" " ")"
+          grep -iE "^(server|via|content-type):" "$hdr" | tr -d "\r" | sed "s/^/    /"
+          echo "判读：200=凭据可用；401=无包读权限或 token 无效；404=包还没发出来；403=被 SSO/权限层拦下"
+          [ "$code_with" = "200" ] || exit 1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - name: 登录 registry（发布用内置 token）
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TOKEN_TIDY="$(printf '%s' "$TOKEN" | tr -d '\r\n[:space:]')"
+          if [ -z "$TOKEN_TIDY" ]; then echo "TOKEN 是空的——secret 没配上？"; exit 1; fi
+          if [ "$TOKEN" != "$TOKEN_TIDY" ]; then echo "注意：secret 里含空白/换行，已剔除后使用"; fi
+          grep -v "npm.pkg.github.com/:_authToken" "$HOME/.npmrc" > "$HOME/.npmrc.tmp" || true
+          if [ -f "$HOME/.npmrc.tmp" ]; then mv "$HOME/.npmrc.tmp" "$HOME/.npmrc"; fi
+          printf '//npm.pkg.github.com/:_authToken=%s\n' "$TOKEN_TIDY" >> "$HOME/.npmrc"
+      # prepack 会重建 host.js/client.js/dist，产物不入库也发得出去
+      - run: pnpm publish --no-git-checks --access public

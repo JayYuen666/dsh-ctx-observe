@@ -1,0 +1,108 @@
+{
+  "name": "@jayyuen666/dsh-ctx-observe",
+  "version": "1.2.1",
+  "description": "dsh 插件：上下文用量观测（官方 usage 折叠口径）+ 战略压缩建议（pre-step 注入、非强制）+ 每回合 token 流水 metrics 端点（ECC suggest-compact / cost-tracker 移植）",
+  "license": "MIT",
+  "author": "JayYuen",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JayYuen666/dsh-ctx-observe.git"
+  },
+  "files": [
+    "host.js",
+    "client.js",
+    "cordis.patch.yml"
+  ],
+  "type": "module",
+  "main": "./host.ts",
+  "exports": {
+    ".": "./host.ts",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "main": "host.js",
+    "exports": {
+      ".": "./host.js",
+      "./client": "./client.js",
+      "./cordis.patch.yml": "./cordis.patch.yml",
+      "./package.json": "./package.json"
+    },
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.client.json",
+    "lint": "oxlint .",
+    "test": "vitest run --coverage",
+    "check": "npm run --loglevel=warn typecheck && npm run --loglevel=warn lint && npm run --loglevel=warn build:client && npm run --loglevel=warn build && npm run --loglevel=warn test && npm run --loglevel=warn fmt:check",
+    "build:client": "node build-client.mjs",
+    "build": "node build-host.mjs",
+    "prepack": "npm run --loglevel=warn build:client && npm run --loglevel=warn build",
+    "fmt:check": "oxfmt --check .",
+    "prepare": "npm run --loglevel=warn build:client && npm run --loglevel=warn build"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-brand": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "3.18.4",
+    "@jayyuen666/dsh-plugin-shared": "^0.6.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-store": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-host-directory-picker": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-package-manifest": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-scope": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.0-rc.2",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint-plugin-sonarjs": "catalog:",
+    "fallow": "catalog:",
+    "jsdom": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "rolldown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "^0.2.0-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.0-rc.2"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

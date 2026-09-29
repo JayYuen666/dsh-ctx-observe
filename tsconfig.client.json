@@ -1,0 +1,7 @@
+{
+  "extends": "@jayyuen666/dsh-plugin-shared/config/tsconfig.client.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/client-card.test.ts"]
+}

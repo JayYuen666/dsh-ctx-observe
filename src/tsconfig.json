@@ -1,0 +1,11 @@
+// src/tsconfig.json —— 本目录走包内那份 client 程序（一行 extends，不复制任何选项与范围）。
+//
+// 为什么要在 src/ 里再放一份：oxlint 的类型引擎按"离被 lint 文件最近的 tsconfig.json"给每个文件挑程序
+// （官方 --help：自动发现，非标准名才用 --tsconfig 覆盖）。包根的 tsconfig.json 是 host 程序
+// （只 include host.ts / lib / test），src/** 不在里面 ⇒ 这些文件落进默认程序（lib 低于 ES2024），
+// 于是 .toSorted / Promise.withResolvers 这类 ES2023+ API 假报 TS2550 并级联出 no-unsafe-*。
+// 写成 extends ../tsconfig.client.json 而不是自己列 include：TS 对"来自基配置的相对路径按基配置所在目录
+// 解析"，所以 include 仍然覆盖 src/**（外加该包在 client 配置里额外列的项），一处声明、两处生效。
+{
+  "extends": "../tsconfig.client.json"
+}
