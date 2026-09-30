@@ -2,7 +2,7 @@
 // rolldown 内联进产物。
 //
 // 为什么盯这一点：external 判据是「按包名段匹配」的函数（build-host.mjs 的
-// packageNameOf + isExternal）。若退化成字符串数组精确匹配，`@jayyuen666/dsh-plugin-shared/lib/*`
+// packageNameOf + isExternal）。若退化成字符串数组精确匹配，`@jayyuen66/dsh-plugin-shared/lib/*`
 // 这类子路径说明符会被漏判为内部模块并整份内联——shared 的模块级状态因此在每个
 // 插件里复制一份，表现为跨插件共享静默失联（本包 host 半的值导入是
 // @deepseek-ai/schemastery —— 宿主 fork 的 schemastery，0.1.7 的 volatile 字段解析
@@ -60,7 +60,7 @@ describe("ctx-observe host 构建", () => {
     // 名单 = 本包 host 半**真的**值导入的那几条（实测产物里只有 locale 与 record）。
     for (const subpath of ["lib/locale", "lib/record", "lib/jsonl"]) {
       assert.ok(
-        hostJs.includes(`from "@jayyuen666/dsh-plugin-shared/${subpath}"`),
+        hostJs.includes(`from "@jayyuen66/dsh-plugin-shared/${subpath}"`),
         `shared/${subpath} 必须外部化（内联会把 shared 的模块级状态复制进本包产物）`,
       );
     }
@@ -88,7 +88,7 @@ describe("闸门的外部化面（shared/lib/trust）", () => {
     // external 的字符串项是精确匹配，子路径一旦漏掉就把整份判据复制进本包产物（判据分叉的起点）。
     const out = await buildHost();
     assert.ok(
-      out.includes('from "@jayyuen666/dsh-plugin-shared/lib/trust"'),
+      out.includes('from "@jayyuen66/dsh-plugin-shared/lib/trust"'),
       "shared/trust 必须外部化",
     );
     assert.ok(!/^function guardTrust\(/mu.test(out), "产物不得内联 guardTrust 的函数体");

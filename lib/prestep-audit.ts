@@ -21,7 +21,7 @@
  */
 
 /** 单条审计发现（序列化后即落盘行；不含消息正文，防泄漏与膨胀）。 */
-import { fieldOf, isRecord } from "@jayyuen666/dsh-plugin-shared/lib/record";
+import { fieldOf, isRecord } from "@jayyuen66/dsh-plugin-shared/lib/record";
 
 export interface AuditFinding {
   /** 探针位置标签。 */

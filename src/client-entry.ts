@@ -23,7 +23,7 @@ import type { ConfigForm, ConfigFormSnapshot } from "@deepseek-ai/dsh-client-ui-
 import type { ConfigPageForm } from "@deepseek-ai/dsh-client-ui-plugin-manager/client";
 import { UI_MESSAGES } from "./ui-messages.ts";
 import type { LocaleNs, Translate, UiMessages } from "./ui-messages.ts";
-import { isRecord } from "@jayyuen666/dsh-plugin-shared/lib/record";
+import { isRecord } from "@jayyuen66/dsh-plugin-shared/lib/record";
 
 const NS: LocaleNs = "ctx-observe";
 
@@ -44,7 +44,7 @@ const NS: LocaleNs = "ctx-observe";
 // 写成裸条目 id（`ctx-observe`）时 ledger 里没有这个键 → 插件页永不出卡。
 // 包名真源：`~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`；
 // test/profile-bundle.ts 把真源读进测试，test/build-client.test.ts 的漂移针据此钉。
-const BUNDLE_PKG = "@jayyuen666/dsh-ctx-observe";
+const BUNDLE_PKG = "@jayyuen66/dsh-ctx-observe";
 
 // `plugins.bundle.config` 的类型契约现在来自属主包（文件头那条 `import type {}`），
 // 于是 `ctx.slots.inject/register` 的槽位名是**编译期受检**的（拼错 key 直接红，见下面

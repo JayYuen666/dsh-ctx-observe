@@ -1,5 +1,5 @@
 {
-  "extends": "@jayyuen666/dsh-plugin-shared/config/tsconfig.client.base.json",
+  "extends": "@jayyuen66/dsh-plugin-shared/config/tsconfig.client.base.json",
   "compilerOptions": {
     "types": ["node"]
   },

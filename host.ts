@@ -84,12 +84,12 @@ import {
   LOCALE_SETTINGS_NAMESPACE,
   messagesFor,
   resolveLocalePreference,
-} from "@jayyuen666/dsh-plugin-shared/lib/locale";
-import { fieldOf, isRecord } from "@jayyuen666/dsh-plugin-shared/lib/record";
-import { shrinkJsonlTail } from "@jayyuen666/dsh-plugin-shared/lib/jsonl";
+} from "@jayyuen66/dsh-plugin-shared/lib/locale";
+import { fieldOf, isRecord } from "@jayyuen66/dsh-plugin-shared/lib/record";
+import { shrinkJsonlTail } from "@jayyuen66/dsh-plugin-shared/lib/jsonl";
 // F1 信任闸门：本包的端点此前只有自家的 `siteOf` + `sec-fetch-site` 一段（已随此收敛删除）。
-import { guardTrust } from "@jayyuen666/dsh-plugin-shared/lib/trust";
-import { queryParam } from "@jayyuen666/dsh-plugin-shared/lib/http";
+import { guardTrust } from "@jayyuen66/dsh-plugin-shared/lib/trust";
+import { queryParam } from "@jayyuen66/dsh-plugin-shared/lib/http";
 
 /**
  * 本包在 dsh 共享面里的身份 id（= cordis.patch.yml 的条目 id，也是插件名末段）。

@@ -1,4 +1,4 @@
-import { definePluginConfig } from "@jayyuen666/dsh-plugin-shared/config/oxlint";
+import { definePluginConfig } from "@jayyuen66/dsh-plugin-shared/config/oxlint";
 
 export default definePluginConfig({
   // 本包真实用到的同步写盘 API —— node/no-sync 的包内例外。

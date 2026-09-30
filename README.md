@@ -1,4 +1,4 @@
-# @jayyuen666/dsh-ctx-observe
+# @jayyuen66/dsh-ctx-observe
 
 [中文](#中文) · [English](#english)
 
@@ -20,18 +20,16 @@
 ### 安装
 
 ```sh
-npm config set --global @jayyuen666:registry=https://npm.pkg.github.com
-printf '//npm.pkg.github.com/:_authToken=<PAT:read:packages>\n' >> ~/.npmrc
-dsh plugin --profile web add @jayyuen666/dsh-ctx-observe
+dsh plugin --profile web add @jayyuen66/dsh-ctx-observe
 ```
 
 - 需要 dsh `>=0.2.0-rc.2`：真源是 `package.json` 里 `peerDependencies` 下的 `@deepseek-ai/dsh`（宿主自 0.1.7-rc 起在装插件时校验它；alpha.1 还没有这道门，所以这行是说明不是保险）。`engines.dsh` 同值但无人读。
-- GitHub Packages 连「读」也要凭据：缺 `read:packages` token 会在拉包阶段就失败。
-- 卸载：`dsh plugin --profile web remove @jayyuen666/dsh-ctx-observe`。源码仓地址见 `package.json` 的 `repository.url`。
+- 包在公共 npm（`registry.npmjs.org`）上，安装不需要任何凭据。
+- 卸载：`dsh plugin --profile web remove @jayyuen66/dsh-ctx-observe`。源码仓地址见 `package.json` 的 `repository.url`。
 
 ### 在 dsh 里启用
 
-- 组合包（bundle）形态：包内 `cordis.patch.yml` 带 `- id: ctx-observe` + `name: "@jayyuen666/dsh-ctx-observe"`，由 `package.json` 的 `dsh.bundle.patch` 指向，`dsh plugin add` 自动登记并激活配置层。
+- 组合包（bundle）形态：包内 `cordis.patch.yml` 带 `- id: ctx-observe` + `name: "@jayyuen66/dsh-ctx-observe"`，由 `package.json` 的 `dsh.bundle.patch` 指向，`dsh plugin add` 自动登记并激活配置层。
 - 卡片只在 web profile 出现（`dsh.client.platform = web`、`immediately = true`）；宿主侧观测与建议不依赖卡片。
 - 设置页里那张卡（标题 `ctx-observe 上下文观测` / `ctx-observe context watch`）：改动先暂存，点「保存」才写进 profile 的配置文档，「撤销」丢弃本地改动。
   - 0.1.7 没有独立的「运行时值」层：一次保存落的就是本条目那行 `config:`。
@@ -71,7 +69,7 @@ dsh plugin --profile web add @jayyuen666/dsh-ctx-observe
 - 模型可见的唯一面：往 pre-step 决策的 `messages` 末尾追加一条建议消息。
   - 消息字段：`role: "user"`、`source: { kind: "plugin:ctx-observe" }`、`id: ctx-observe-<uuid>`。
   - 正文是固定双语模板，不插值任何会话内容。
-- client 半向插件管理页注入 `plugins.bundle.config` 槽位的卡片，key = bundle 包名 `@jayyuen666/dsh-ctx-observe`（该槽按包名 keyed，真源是 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`）。
+- client 半向插件管理页注入 `plugins.bundle.config` 槽位的卡片，key = bundle 包名 `@jayyuen66/dsh-ctx-observe`（该槽按包名 keyed，真源是 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`）。
 - client 半 `inject: ["slots", "configForms", "locale"]`；`configForms.get()` 与 settings 命名空间用的仍是裸条目 id `ctx-observe`——槽位 key 与条目 id 是两个标识，不是一回事。
 - 不注册工具、不注册命令、不写 system prompt；全包唯一的外发调用是卡片 fetch 同源的 `/_dsh/ctx-observe/metrics`。
 
@@ -89,8 +87,8 @@ dsh plugin --profile web add @jayyuen666/dsh-ctx-observe
 
 ### 常见问题
 
-- 装不上：401 多半是 `~/.npmrc` 里没有 `read:packages` token。
-  - 404 通常是同组库包 `@jayyuen666/dsh-plugin-shared` 还没上 registry——本包值 import 它的 `lib/locale`，缺了是 `ERR_MODULE_NOT_FOUND`，不降级。
+- 装不上：404 多半是该版本还没发到 npmjs（先看 `dist-tags.latest`）。
+  - 404 通常是同组库包 `@jayyuen66/dsh-plugin-shared` 还没上 registry——本包值 import 它的 `lib/locale`，缺了是 `ERR_MODULE_NOT_FOUND`，不降级。
 - 卡片 metrics 区一直空：先确认这是 web profile。非 web 宿主（TUI）本就没有 webServer，子 fiber 不激活、端点不存在，而这是正常部署态，插件不再为此打日志。
   - 真要出问题时才会看到的是一条 error：`[ctx-observe] webServer 已注入却读不到服务实例，metrics 端点未注册`——它说的是"inject 说到位、get 却读不出"这种契约被打破的情形，不是宿主没装 webServer。
   - 注册路由的 effect 挂在 `inject(["webServer"])` 的子 fiber 上：设置卡改 `enabled` 不会重跑工厂，宿主换 webServer 实例会先卸后装。
@@ -122,18 +120,16 @@ dsh plugin --profile web add @jayyuen666/dsh-ctx-observe
 ### Install
 
 ```sh
-npm config set --global @jayyuen666:registry=https://npm.pkg.github.com
-printf '//npm.pkg.github.com/:_authToken=<PAT:read:packages>\n' >> ~/.npmrc
-dsh plugin --profile web add @jayyuen666/dsh-ctx-observe
+dsh plugin --profile web add @jayyuen66/dsh-ctx-observe
 ```
 
 - Requires dsh `>=0.2.0-rc.2`: the source of truth is the `@deepseek-ai/dsh` entry under `peerDependencies` in `package.json` (`engines.dsh` carries the same value for readers only; the host never reads it).
-- GitHub Packages requires credentials even for reads, so a missing `read:packages` token fails during fetch.
-- Remove with `dsh plugin --profile web remove @jayyuen666/dsh-ctx-observe`. Source repository: see `repository.url` in `package.json`.
+- The packages live on the public npm registry, so installation needs no credentials.
+- Remove with `dsh plugin --profile web remove @jayyuen66/dsh-ctx-observe`. Source repository: see `repository.url` in `package.json`.
 
 ### Enabling it in dsh
 
-- Bundle form: the package's own `cordis.patch.yml` carries `- id: ctx-observe` + `name: "@jayyuen666/dsh-ctx-observe"` and is pointed at by `dsh.bundle.patch` in `package.json`; `dsh plugin add` registers and activates the config layer.
+- Bundle form: the package's own `cordis.patch.yml` carries `- id: ctx-observe` + `name: "@jayyuen66/dsh-ctx-observe"` and is pointed at by `dsh.bundle.patch` in `package.json`; `dsh plugin add` registers and activates the config layer.
 - The card only appears on the web profile (`dsh.client.platform = web`, `immediately = true`); host-side observation and suggestion do not depend on it.
 - The card (titled `ctx-observe 上下文观测` / `ctx-observe context watch`) stages edits locally: Save writes them into the profile's configuration document, Revert discards them.
   - 0.1.7 has no separate "runtime value" layer: a Save lands on this entry's own `config:` row.
@@ -174,7 +170,7 @@ The first 10 fields each have a card row; `fallbackWindow` is the 11th and the o
 - The only model-visible artifact: one message appended to the pre-step decision's `messages`.
   - Message fields: `role: "user"`, `source: { kind: "plugin:ctx-observe" }`, `id: ctx-observe-<uuid>`.
   - The text is a fixed bilingual template with no session content interpolated.
-- The client half injects a card into the `plugins.bundle.config` slot on the plugin page, keyed by the bundle package name `@jayyuen666/dsh-ctx-observe` (source of truth: `dsh.profile.bundles` in `~/.dsh/profiles/web/package.json`).
+- The client half injects a card into the `plugins.bundle.config` slot on the plugin page, keyed by the bundle package name `@jayyuen66/dsh-ctx-observe` (source of truth: `dsh.profile.bundles` in `~/.dsh/profiles/web/package.json`).
 - The client declares `inject: ["slots", "configForms", "locale"]`. `configForms.get()` and the settings namespace use the bare entry id `ctx-observe` — that id and the slot key above are two different identifiers.
 - Registers no tools and no commands, writes nothing into the system prompt; the package's only outbound call is the card fetching its own same-origin `/_dsh/ctx-observe/metrics`.
 
@@ -192,8 +188,8 @@ The first 10 fields each have a card row; `fallbackWindow` is the 11th and the o
 
 ### FAQ
 
-- Install fails: 401 usually means no `read:packages` token in `~/.npmrc`.
-  - 404 usually means the sibling library package `@jayyuen666/dsh-plugin-shared` is not on the registry yet - this package value-imports its `lib/locale`, so a missing one is `ERR_MODULE_NOT_FOUND`, not a graceful downgrade.
+- Install fails with 404: that version was never published to npmjs (check `dist-tags.latest`).
+  - 404 usually means the sibling library package `@jayyuen66/dsh-plugin-shared` is not on the registry yet - this package value-imports its `lib/locale`, so a missing one is `ERR_MODULE_NOT_FOUND`, not a graceful downgrade.
 - The card's metrics section stays empty: first check this is a web profile.
   - On a non-web host (TUI) there is no webServer, the child fiber never activates and the endpoint simply does not exist - a normal deployment shape, so the plugin no longer logs about it.
   - The one error you can still see is `[ctx-observe] webServer 已注入却读不到服务实例，metrics 端点未注册`, which means the inject contract was broken (declared available, `get` returned nothing), not that the host lacks webServer.

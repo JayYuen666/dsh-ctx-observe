@@ -7,7 +7,7 @@
 //
 // 键集一致由 tsc 保证：zh / en 两份都标注同一个 Messages 类型，少键多键都在编译期红。
 // console.* 的日志文案不在此列——那是给排障的人看的，不随界面语言切换。
-import type { MessagesCatalog } from "@jayyuen666/dsh-plugin-shared/lib/locale";
+import type { MessagesCatalog } from "@jayyuen66/dsh-plugin-shared/lib/locale";
 
 /** 本包 host 侧产出的全部人读文案。 */
 export interface CtxObserveMessages {

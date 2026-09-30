@@ -28,4 +28,4 @@
 # 注意 pnpm ≥12.3.0：12.0.0 的 add 本地目录有 #14437 bug。
 - insert:
     - id: ctx-observe
-      name: "@jayyuen666/dsh-ctx-observe"
+      name: "@jayyuen66/dsh-ctx-observe"

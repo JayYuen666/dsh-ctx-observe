@@ -12,7 +12,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { rolldown } from "rolldown";
-import { canonicalizeRegionPaths } from "@jayyuen666/dsh-plugin-shared/lib/canonicalize-region-paths";
+import { canonicalizeRegionPaths } from "@jayyuen66/dsh-plugin-shared/lib/canonicalize-region-paths";
 
 const root = import.meta.dirname;
 

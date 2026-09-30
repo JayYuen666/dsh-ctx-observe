@@ -154,7 +154,7 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: 3.18.4
         version: 3.18.4
-      '@jayyuen666/dsh-plugin-shared':
+      '@jayyuen66/dsh-plugin-shared':
         specifier: ^0.6.3
         version: 0.6.3(@deepseek-ai/cordis@4.0.4)
     devDependencies:
@@ -556,11 +556,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@jayyuen666/dsh-plugin-shared@0.6.3':
-    resolution: {integrity: sha512-tioYTFPv0EMloW84d0iPJyUevXlzfe2ArrTUsVmw8af2SNNeDAmmykki/XkVIWCXlAMR0ZfVCwN5KHK6OMMdLA==, tarball: https://npm.pkg.github.com/download/@jayyuen666/dsh-plugin-shared/0.6.3/3295f5a44190eae2d28d12c0595b07c353902ac4}
+  '@jayyuen66/dsh-plugin-shared@0.6.3':
+    resolution: {integrity: sha512-/C4W/jaB8q2WB3YdbDS/ePdbgj/gKbOWmVL3kQjtZ5Vkj0slKinIAa6jv74hia3kSR4/0q9h1p5EibBxEzRFMA==}
     engines: {dsh: '>=0.2.0-rc.2'}
     peerDependencies:
       '@deepseek-ai/dsh': ^0.2.0-rc.2
+    peerDependenciesMeta:
+      '@deepseek-ai/dsh':
+        optional: true
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1994,7 +1997,7 @@ snapshots:
   '@fallow-cli/win32-x64-msvc@3.30.0':
     optional: true
 
-  '@jayyuen666/dsh-plugin-shared@0.6.3(@deepseek-ai/cordis@4.0.4)':
+  '@jayyuen66/dsh-plugin-shared@0.6.3(@deepseek-ai/cordis@4.0.4)':
     dependencies:
       '@deepseek-ai/dsh-output-retention': 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)
     transitivePeerDependencies:
