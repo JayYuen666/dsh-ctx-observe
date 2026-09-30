@@ -1,6 +1,6 @@
 {
   "name": "@jayyuen66/dsh-ctx-observe",
-  "version": "1.2.1",
+  "version": "1.0.0",
   "description": "dsh 插件：上下文用量观测（官方 usage 折叠口径）+ 战略压缩建议（pre-step 注入、非强制）+ 每回合 token 流水 metrics 端点（ECC suggest-compact / cost-tracker 移植）",
   "license": "MIT",
   "author": "JayYuen",
@@ -47,7 +47,7 @@
     "@deepseek-ai/dsh-brand": "0.2.0-rc.2",
     "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "3.18.4",
-    "@jayyuen66/dsh-plugin-shared": "^0.6.3"
+    "@jayyuen66/dsh-plugin-shared": "^1.0.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
