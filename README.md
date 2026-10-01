@@ -15,7 +15,6 @@
   - `assistant/attempt` 只有 stream 一条路。
 - 提醒节奏：达阈值提醒一次，此后再涨「窗口 × `remindRatio`」（默认 5%）才重复；用量回落超过一个间隔即视为已压缩、重新武装。
   - tokens 未知时走辅信号：第 50 次工具调用首提、此后每 25 次。
-  - 另有两枚 `agent/pre-step` 形状探针（`outer` / `inner`）只观测不改决策，异常形状落 audit 分片。
 
 ### 安装
 
@@ -77,11 +76,10 @@ dsh plugin --profile web add @jayyuen66/dsh-ctx-observe
 
 - 只读宿主事件：`session/event` 的 `assistant/message`、`assistant/attempt`、`tool/call`、`request/context`，加 `session/disposed` 做清理；不读 transcript，也不改消息内容。
 - 子代理会话（`header.delegationDepth > 0` 或 `header.origin === 'subagent'`）整条链退出：不记账、不落 metrics、不注入建议。
-- 落盘位置：`<dsh 数据目录>/cache/ctx-observe/` 下的 `ctx-observe.<pid>.jsonl`（每回合流水）与 `pre-step-audit.<pid>.jsonl`（形状审计）。
+- 落盘位置：`<dsh 数据目录>/cache/ctx-observe/` 下的 `ctx-observe.<pid>.jsonl`（每回合流水）。
   - 数据目录根由 `@deepseek-ai/dsh-home-paths` 解析（`DSH_HOME` 优先、空白值视为未设）。
   - 按 pid 分片即单写者，跨进程不共享文件。
 - 体积上限：单分片 5 MiB，超限按行对半收缩（不切断 JSON 行）。
-  - 审计每进程最多 400 行、每行只有元数据（`tag / finding / kind / msgsType / msgsLen / keys / turn / step / sid`），摘要函数明确不触碰消息正文。
   - 内存里 watchers/toolCounts 两张表各最多 200 个会话，超限淘汰最旧。
 - `cache/` 在 dsh 语义里是「可丢弃的派生数据」：真源在 session 事件流，删掉 `cache/ctx-observe/` 不丢事实。`metricsEnabled = false` 停止写入，`metricsRetentionDays = 0` 关闭回收。
 
@@ -115,7 +113,6 @@ dsh plugin --profile web add @jayyuen66/dsh-ctx-observe
   - `assistant/attempt` has only the stream path.
 - Cadence: one reminder once the threshold is crossed, then only after another `window × remindRatio` (5%) of growth; usage dropping by more than one interval counts as "already compacted" and rearms.
   - When tokens are unknown the secondary signal applies: first at 50 tool calls, then every 25.
-  - Two `agent/pre-step` shape probes (`outer` / `inner`) observe only, never mutate, and write anomalous decision shapes to the audit shard.
 
 ### Install
 
@@ -178,11 +175,10 @@ The first 10 fields each have a card row; `fallbackWindow` is the 11th and the o
 
 - Host events only: `session/event` (`assistant/message`, `assistant/attempt`, `tool/call`, `request/context`) plus `session/disposed` for cleanup. No transcript reads, no message mutation.
 - Sub-agent sessions (`header.delegationDepth > 0` or `header.origin === 'subagent'`) opt out of the whole chain: no accounting, no metrics rows, no suggestions.
-- Written to `<dsh data dir>/cache/ctx-observe/` as `ctx-observe.<pid>.jsonl` (turn ledger) and `pre-step-audit.<pid>.jsonl` (shape audit).
+- Written to `<dsh data dir>/cache/ctx-observe/` as `ctx-observe.<pid>.jsonl` (turn ledger).
   - The data root is resolved by `@deepseek-ai/dsh-home-paths` (`DSH_HOME` wins, a blank value counts as unset).
   - Per-pid shards mean a single writer per file, no cross-process sharing.
 - Bounds: 5 MiB per shard, halved line-wise when exceeded (never mid-JSON).
-  - At most 400 audit rows per process, and each row carries metadata only (`tag / finding / kind / msgsType / msgsLen / keys / turn / step / sid`) - the summarizer explicitly never touches message bodies.
   - The in-memory watchers and toolCounts maps hold at most 200 sessions each, oldest evicted.
 - `cache/` is dsh's "discardable derived data": the session event stream stays the source of truth, so deleting `cache/ctx-observe/` loses no facts. `metricsEnabled = false` stops writes, `metricsRetentionDays = 0` disables reclamation.
 

@@ -1,11 +1,9 @@
-# 由 publish-check/render-ci.mjs 生成：要改请改生成器，别在单包仓里手改。
 autoInstallPeers: false
 catalog:
   "@types/node": 26.6.3
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
   "@vitest/coverage-v8": 5.0.2
-  fallow: 3.30.0
   "eslint-plugin-sonarjs": 4.2.2
   happy-dom: 20.14.5
   jsdom: 30.1.1
@@ -110,6 +108,10 @@ overrides:
   "@deepseek-ai/dsh-workspace": 0.2.0-rc.2
   "@deepseek-ai/schemastery": 3.18.4
   "@deepseek-ai/dsh-client-shortcuts": 0.2.0-rc.2
+# esbuild 由 vite 传递引入，其安装脚本负责落下当前平台的二进制；本仓没有包直接依赖它。
+# open-code-review 的 postinstall 是原生二进制的下载兜底（平台二进制已由它的
+# optionalDependencies 选一，下载路径通常走不到）——授权它，是为了让 ocr-review 装上即可用。
 allowBuilds:
   esbuild: true
+  "@alibaba-group/open-code-review": true
 minimumReleaseAge: 0

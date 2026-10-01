@@ -43,8 +43,6 @@ const METRICS_ROUTE_LABEL = "ctx-observe: metrics route";
 const PLUGIN_NAMESPACE = "ctx-observe";
 /** pid 分片之前的旧单文件 metrics 落盘名（读侧兼容它）。 */
 const LEGACY_METRICS_FILE = "ctx-observe.jsonl";
-/** pre-step 审计的 finding 名：决策是 enter 却没带 messages。 */
-const ENTER_WITHOUT_MESSAGES_FINDING = "enter-without-messages";
 /** sec-fetch-site 的同源取值（信任闸门放行的两种之一）。 */
 const SAME_ORIGIN_FETCH_SITE = "same-origin";
 
@@ -394,10 +392,6 @@ function metricsPath(dir: string): string {
   return path.join(cacheShardDir(dir), `ctx-observe.${String(process.pid)}.jsonl`);
 }
 
-function auditPath(dir: string): string {
-  return path.join(cacheShardDir(dir), `pre-step-audit.${String(process.pid)}.jsonl`);
-}
-
 /** 读一个文件的全部非空行（文件不存在 → 空数组）。 */
 function linesOf(file: string): string[] {
   if (!existsSync(file)) {
@@ -578,12 +572,8 @@ async function spawnMetricWriters(
   return Promise.all(pending);
 }
 
-// ── 瀑布注册序与探针掩码的两个生产者（审计 item 5 / item 4）──────────────
-// 留在模块作用域：包进套件里就成了「不捕获父作用域变量的嵌套函数」，纯函数该待在最外层。
-async function malformedProducer(): Promise<unknown> {
-  return { kind: "enter" };
-}
-
+/** 瀑布链的合法 enter 决策（建议注入器的用例用它当下游裁决）。
+ *  留在模块作用域：包进套件里就成了「不捕获父作用域变量的嵌套函数」，纯函数该待在最外层。 */
 async function claimedProducer(): Promise<unknown> {
   return { kind: "enter", messages: [{ id: "c" }] };
 }
@@ -872,77 +862,6 @@ describe("ctx-observe host", () => {
         );
         assert.equal(loggedText(), "", "解析成功就不该有任何降级日志");
       });
-    });
-  });
-
-  describe("pre-step 监听注册序与探针掩码", () => {
-    let dir: string;
-
-    beforeEach(() => {
-      dir = mkScratch("ctx-obs-order-");
-      process.env["DSH_HOME"] = dir;
-    });
-
-    it("注入器 prepend 注册为最外层，两个探针随后注册（更内层、不用 prepend）", () => {
-      const mock = createHost();
-      const registrations = mock.registrations.filter((item) => item.event === PRE_STEP_EVENT);
-      assert.deepEqual(registrations, [
-        { event: PRE_STEP_EVENT, prepend: true },
-        { event: PRE_STEP_EVENT, prepend: false },
-        { event: PRE_STEP_EVENT, prepend: false },
-      ]);
-      // cordis 序：prepend→unshift 到 index 0（最外层）、普通 on→push（依次向内）
-      assert.equal(mock.handlers[PRE_STEP_EVENT]?.length, 3);
-    });
-
-    it("嵌套跑完整链：探针看到的是注入前的裁决，畸形决策不被建议掩掉", async () => {
-      const mock = createHost({ ...DEFAULT_VALUE, contextThresholdTokens: 100 });
-      emit(
-        mock,
-        { id: "mask" },
-        {
-          type: ASSISTANT_MESSAGE_EVENT,
-          data: { turn: 1, usage: { totalTokens: 200 } },
-        },
-      );
-      const payload = payloadFor("mask");
-      const outer = chainAt(mock, 1);
-      const inner = chainAt(mock, 2);
-      // 根生产者产出 enter 但缺 messages（正是探针要找的崩溃指纹）
-      const composed = await inject(mock, payload, () =>
-        outer(payload, () => inner(payload, malformedProducer)),
-      );
-      // 注入器按 item 4 的判据不接管缺 messages 的畸形决策 → 原样透传
-      assert.deepEqual(composed, { kind: "enter" });
-      const file = auditPath(dir);
-      const findings = linesOf(file).map((line) => JSON.parse(line) as Record<string, unknown>);
-      const kinds = findings.map((row) => row["finding"]);
-      assert.deepEqual(kinds, [ENTER_WITHOUT_MESSAGES_FINDING, ENTER_WITHOUT_MESSAGES_FINDING]);
-      assert.deepEqual(
-        findings.map((row) => row["tag"]),
-        ["inner", "outer"],
-        "内层探针先结算先落行、外层探针后落行（两探针都在注入器之内）",
-      );
-    });
-
-    it("正常 enter：注入器追加建议，探针不误报", async () => {
-      const mock = createHost({ ...DEFAULT_VALUE, contextThresholdTokens: 100 });
-      emit(
-        mock,
-        { id: "clean" },
-        {
-          type: ASSISTANT_MESSAGE_EVENT,
-          data: { turn: 1, usage: { totalTokens: 200 } },
-        },
-      );
-      const payload = payloadFor("clean");
-      const outer = chainAt(mock, 1);
-      const inner = chainAt(mock, 2);
-      const composed = await inject(mock, payload, () =>
-        outer(payload, () => inner(payload, claimedProducer)),
-      );
-      assert.equal(messageCount(composed), 2, "建议追加在链尾");
-      assert.equal(linesOf(auditPath(dir)).length, 0, "干净形状零审计行");
     });
   });
 
@@ -1821,41 +1740,6 @@ describe("ctx-observe host", () => {
       assert.equal(metricRows(dir).length, 0);
     });
 
-    it("探针落盘：畸形决策审计行进 pre-step-audit 分片", async () => {
-      const mock = createHost();
-      const outer = chainAt(mock, 1);
-      await outer(payloadFor("audited"), malformedProducer);
-      const findings = linesOf(auditPath(dir)).map(
-        (line) => JSON.parse(line) as Record<string, unknown>,
-      );
-      assert.equal(findings[0]?.["tag"], "outer");
-      assert.equal(findings[0]["finding"], ENTER_WITHOUT_MESSAGES_FINDING);
-      assert.equal(findings[0]["sid"], "audited");
-    });
-
-    it("探针落盘失败（DSH_HOME 指向文件）→ 静默丢条、决策仍透传", async () => {
-      const mock = createHost();
-      const blocker = path.join(dir, "blocker");
-      writeFileSync(blocker, "x");
-      process.env["DSH_HOME"] = blocker;
-      const decision = { kind: "enter", messages: [] };
-      const outer = chainAt(mock, 1);
-      const out = await outer(payloadFor("audited"), async () => decision);
-      assert.deepEqual(out, decision);
-    });
-
-    it("探针条数上限：AUDIT_MAX_ROWS 之后不再落盘（防膨胀）", async () => {
-      const mock = createHost();
-      const inner = chainAt(mock, 2);
-      const attempts = Array.from({ length: 402 }, (_unused, index) => index);
-      await Promise.all(
-        attempts.map(async (index: number): Promise<unknown> =>
-          inner(payloadFor(`cap-${String(index)}`), malformedProducer),
-        ),
-      );
-      assert.equal(linesOf(auditPath(dir)).length, 400, "达上限后停止落盘");
-    });
-
     it("分片超限 → 重写为尾部一半（有界，不切断 JSON 行）", () => {
       const file = metricsPath(dir);
       mkdirSync(path.dirname(file), { recursive: true });
@@ -1965,15 +1849,17 @@ describe("ctx-observe host", () => {
       mock = createHost({ ...DEFAULT_VALUE, metricsEnabled: true });
     });
 
-    function invoke(
+    /** 端点 handler 是 async（聚合全部分片的读与排序让出事件循环），故这里 await 它；
+     *  官方 WebRoute.handler 的返回域收 Promise<void>，await 即等这次响应走完。 */
+    async function invoke(
       headers: Record<string, unknown>,
       failWriteHead200 = false,
       url = METRICS_ENDPOINT,
-    ): Response {
+    ): Promise<Response> {
       const handler = mock.routes.get(METRICS_ENDPOINT);
       assert.ok(handler !== undefined, "端点已注册");
       const state: Response = { code: 0, body: "" };
-      handler(
+      await handler(
         { headers, url },
         {
           writeHead: (statusCode: number): void => {
@@ -1990,11 +1876,14 @@ describe("ctx-observe host", () => {
       return state;
     }
 
-    it("无 sec-fetch-site 头 / same-origin / none → 200；cross-site → 403", () => {
-      assert.equal(invoke({}).code, 200);
-      assert.equal(invoke({ "sec-fetch-site": SAME_ORIGIN_FETCH_SITE }).code, 200);
-      assert.equal(invoke({ "sec-fetch-site": "none" }).code, 200);
-      const rejected = invoke({ "sec-fetch-site": "cross-site" });
+    it("无 sec-fetch-site 头 / same-origin / none → 200；cross-site → 403", async () => {
+      const probe1 = await invoke({});
+      assert.equal(probe1.code, 200);
+      const probe2 = await invoke({ "sec-fetch-site": SAME_ORIGIN_FETCH_SITE });
+      assert.equal(probe2.code, 200);
+      const probe3 = await invoke({ "sec-fetch-site": "none" });
+      assert.equal(probe3.code, 200);
+      const rejected = await invoke({ "sec-fetch-site": "cross-site" });
       assert.equal(rejected.code, 403);
       // F1-3：本包这段 403 从纯文本收敛成 shared 的 JSON 出口，**错误文本逐字保留**
       // ⇒ 断言覆盖的是同一个分支，只是形变了（不许删这条，它钉的是"跨源被拒"这件事）。
@@ -2004,10 +1893,10 @@ describe("ctx-observe host", () => {
       );
     });
 
-    it("信任闸门：重绑定形态（Host 是外域、sec-fetch-site 与 Origin 自洽）必须 403", () => {
+    it("信任闸门：重绑定形态（Host 是外域、sec-fetch-site 与 Origin 自洽）必须 403", async () => {
       // 只有 Host 腿拒得了它：页面把 evil.test 解析到 127.0.0.1 后，浏览器给出的
       // sec-fetch-site 就是 same-origin、Origin 也与 Host 相等。
-      const rebound = invoke({
+      const rebound = await invoke({
         host: "evil.test:8787",
         origin: "http://evil.test:8787",
         "sec-fetch-site": SAME_ORIGIN_FETCH_SITE,
@@ -2019,19 +1908,23 @@ describe("ctx-observe host", () => {
         "判据次序也得钉：Host 腿要先跑，否则这条会落成交叉源的文案",
       );
       // Host 与 Origin 同时可疑 ⇒ 仍报 Host 腿的文案（同一枚 403，理由唯一）。
-      assert.equal(invoke({ host: "evil.test:8787", "sec-fetch-site": "cross-site" }).code, 403);
+      const probe4 = await invoke({ host: "evil.test:8787", "sec-fetch-site": "cross-site" });
+      assert.equal(probe4.code, 403);
       // 回环权威 + 同源 Origin ⇒ 200（本地 CLI 与宿主 UI 的正常面）。
-      assert.equal(invoke({ host: "127.0.0.1:8787" }).code, 200);
-      assert.equal(invoke({ host: "127.0.0.1:8787", origin: "http://127.0.0.1:8787" }).code, 200);
+      const probe5 = await invoke({ host: "127.0.0.1:8787" });
+      assert.equal(probe5.code, 200);
+      const probe6 = await invoke({ host: "127.0.0.1:8787", origin: "http://127.0.0.1:8787" });
+      assert.equal(probe6.code, 200);
       // 缺 Host 是本地裸 socket / Node 客户端面（浏览器走不到）⇒ 200，这条把口径钉成断言。
-      assert.equal(invoke({}).code, 200);
+      const probe7 = await invoke({});
+      assert.equal(probe7.code, 200);
     });
 
-    it("headers 非对象（异常 req）→ 视作无同源信息，200", () => {
+    it("headers 非对象（异常 req）→ 视作无同源信息，200", async () => {
       const handler = mock.routes.get(METRICS_ENDPOINT);
       assert.ok(handler !== undefined);
       let code = 0;
-      handler(["not-an-object"], {
+      await handler(["not-an-object"], {
         writeHead: (statusCode: number): void => {
           code = statusCode;
         },
@@ -2042,7 +1935,7 @@ describe("ctx-observe host", () => {
       assert.equal(code, 200);
     });
 
-    it("聚合本进程分片：tokens 按 native pressure，usage 原样透传", () => {
+    it("聚合本进程分片：tokens 按 native pressure，usage 原样透传", async () => {
       emit(
         mock,
         { id: "m1" },
@@ -2051,7 +1944,7 @@ describe("ctx-observe host", () => {
           data: { turn: 2, usage: { inputTokens: 40, outputTokens: 5, totalTokens: 45 } },
         },
       );
-      const { code, body } = invoke({ "sec-fetch-site": SAME_ORIGIN_FETCH_SITE });
+      const { code, body } = await invoke({ "sec-fetch-site": SAME_ORIGIN_FETCH_SITE });
       assert.equal(code, 200);
       const rows = body
         .split("\n")
@@ -2066,7 +1959,7 @@ describe("ctx-observe host", () => {
       assert.equal(usage.inputTokens, 40, "usage 原样透传");
     });
 
-    it("聚合旧版单文件与其它进程分片并按 ts 升序；陌生文件与 cache 根目录一律忽略", () => {
+    it("聚合旧版单文件与其它进程分片并按 ts 升序；陌生文件与 cache 根目录一律忽略", async () => {
       // 落盘位置搬进 `<home>/cache/ctx-observe` 后，cache/ 是**所有插件共用**的可丢弃
       // 数据区，于是"只读本包前缀"从礼貌问题变成正确性问题：读侧一旦把邻居的
       // jsonl 当自己的流水聚合，卡片与 context-budget 技能就会读到别家的数据。
@@ -2099,7 +1992,8 @@ describe("ctx-observe host", () => {
         path.join(dir, "cache", "lesson-loop.jsonl"),
         '{"ts":6,"session":"neighbour"}\n',
       );
-      assert.deepEqual(invoke({}).body.split("\n"), [
+      const probeBody = await invoke({});
+      assert.deepEqual(probeBody.body.split("\n"), [
         "not-json",
         '{"ts":1,"session":"legacy"}',
         '{"ts":2,"session":"other"}',
@@ -2107,25 +2001,31 @@ describe("ctx-observe host", () => {
       ]);
     });
 
-    it("cache 子目录不存在 / 路径被文件占住 → 200 空正文（读侧异常不外露）", () => {
+    it("cache 子目录不存在 / 路径被文件占住 → 200 空正文（读侧异常不外露）", async () => {
       // 旧用例的第二态是"DSH_HOME/HOME 均未设置 → 解析抛错被吞"。改用 home-paths 后
       // 解析是全函数、不再抛，而"两个都没设"会把读侧指向**真实家目录**（读的是开发者
       // 的 ~/.dsh/cache，结果不可预期）。读侧不变式改由两个确定态覆盖：目录还没建
       // （ENOENT）与目录位置被普通文件占住（ENOTDIR，非 ENOENT 那一支）。
-      assert.equal(invoke({}).body, "", "目录还没建起来");
+      {
+        const probe8 = await invoke({});
+        assert.equal(probe8.body, "", "目录还没建起来");
+      }
       const blocker = path.join(dir, "blocker");
       writeFileSync(blocker, "x");
       process.env["DSH_HOME"] = blocker;
-      assert.equal(invoke({}).body, "", "非 ENOENT 的读失败同样被聚合读吞掉，不外露 500");
+      {
+        const probe9 = await invoke({});
+        assert.equal(probe9.body, "", "非 ENOENT 的读失败同样被聚合读吞掉，不外露 500");
+      }
     });
 
-    it("写响应失败（200 writeHead 抛错）→ 500 metrics read failed", () => {
-      const { code, body } = invoke({}, true);
+    it("写响应失败（200 writeHead 抛错）→ 500 metrics read failed", async () => {
+      const { code, body } = await invoke({}, true);
       assert.equal(code, 500);
       assert.equal(body, "metrics read failed");
     });
 
-    it("?limit=N：ts 升序排序后的尾部 N 行（最近 N 条）；超过行数 = 全量", () => {
+    it("?limit=N：ts 升序排序后的尾部 N 行（最近 N 条）；超过行数 = 全量", async () => {
       for (const turn of [1, 2, 3]) {
         emit(
           mock,
@@ -2133,22 +2033,26 @@ describe("ctx-observe host", () => {
           { type: ASSISTANT_MESSAGE_EVENT, data: { turn, usage: { totalTokens: 100 + turn } } },
         );
       }
-      const all = invoke({}).body.trim().split("\n");
+      const probeall = await invoke({});
+      const all = probeall.body.trim().split("\n");
       assert.equal(all.length, 3, "缺席 = 全量（不为省 token 降能力的口径不变）");
-      const two = invoke({}, false, "/_dsh/ctx-observe/metrics?limit=2").body.trim().split("\n");
+      const probetwo = await invoke({}, false, "/_dsh/ctx-observe/metrics?limit=2");
+      const two = probetwo.body.trim().split("\n");
       assert.deepEqual(two, all.slice(-2), "limit=2 取最近 2 行");
-      const many = invoke({}, false, "/_dsh/ctx-observe/metrics?limit=99").body.trim().split("\n");
+      const probemany = await invoke({}, false, "/_dsh/ctx-observe/metrics?limit=99");
+      const many = probemany.body.trim().split("\n");
       assert.deepEqual(many, all, "limit 超过行数 = 全量");
     });
 
-    it("?limit= 出现但非法（非数字 / 0 / 负数）→ 400 且点名", () => {
-      assert.equal(invoke({}, false, "/_dsh/ctx-observe/metrics?limit=abc").code, 400);
-      assert.equal(invoke({}, false, "/_dsh/ctx-observe/metrics?limit=0").code, 400);
-      assert.equal(invoke({}, false, "/_dsh/ctx-observe/metrics?limit=-3").code, 400);
-      assert.match(
-        invoke({}, false, "/_dsh/ctx-observe/metrics?limit=0").body,
-        /positive integer/u,
-      );
+    it("?limit= 出现但非法（非数字 / 0 / 负数）→ 400 且点名", async () => {
+      const probe10 = await invoke({}, false, "/_dsh/ctx-observe/metrics?limit=abc");
+      assert.equal(probe10.code, 400);
+      const probe11 = await invoke({}, false, "/_dsh/ctx-observe/metrics?limit=0");
+      assert.equal(probe11.code, 400);
+      const probe12 = await invoke({}, false, "/_dsh/ctx-observe/metrics?limit=-3");
+      assert.equal(probe12.code, 400);
+      const probeLimit0 = await invoke({}, false, "/_dsh/ctx-observe/metrics?limit=0");
+      assert.match(probeLimit0.body, /positive integer/u);
     });
 
     it("effect 清理 → 端点注销（幂等）", () => {

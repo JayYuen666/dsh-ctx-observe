@@ -3,6 +3,10 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: read
+  # npm trusted publishing（OIDC）：官方文档里 id-token: write 是必需项，缺了报
+  # ENEEDAUTH。runner 上没配过 trusted publisher 时这行无害——npm 探测不到 OIDC
+  # 环境就回落到下面的 token，两条路并存，所以不必等 npmjs.com 配好才合。
+  id-token: write
 jobs:
   publish:
     runs-on: ubuntu-latest

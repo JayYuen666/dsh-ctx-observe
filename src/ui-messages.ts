@@ -136,7 +136,7 @@ export const UI_MESSAGES: MessagesCatalog<UiMessages> = {
     remindRatioLabel: "窗口比例重复间隔（remindRatio）",
     remindRatioHint: "提醒后再增长窗口 × ratio 才重复（0.01-0.3，默认 0.05 = 5%）",
     retentionLabel: "分片留存天数（metricsRetentionDays）",
-    retentionHint: "回收其它进程留下的过期 metrics/audit 分片；0 = 永久保留不回收（默认 30）",
+    retentionHint: "回收其它进程留下的过期 metrics 分片；0 = 永久保留不回收（默认 30）",
     remindIntervalLabel: "无窗口重复间隔（remindIntervalTokens）",
     remindIntervalHint: "窗口未知时按固定 token 间隔重复提醒（默认 60000）",
     toolCountFirstLabel: "辅信号首提醒（toolCountFirst）",
@@ -180,7 +180,7 @@ export const UI_MESSAGES: MessagesCatalog<UiMessages> = {
       "Repeat only after another window × ratio growth (0.01-0.3, default 0.05 = 5%)",
     retentionLabel: "Shard retention days (metricsRetentionDays)",
     retentionHint:
-      "Sweep stale metrics/audit shards left by other processes; 0 = keep forever (default 30)",
+      "Sweep stale metrics shards left by other processes; 0 = keep forever (default 30)",
     remindIntervalLabel: "No-window repeat interval (remindIntervalTokens)",
     remindIntervalHint:
       "When the window is unknown, re-remind on a fixed token interval (default 60000)",

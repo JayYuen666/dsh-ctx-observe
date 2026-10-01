@@ -11,11 +11,10 @@
 #   - 建议注入：agent/pre-step waterfall 以 prepend 注册（全链最外层），先
 #     next() 取下游合成决策、再把建议块追加到末尾；非对象/缺 messages/ reject
 #     的决策一律原样透传，且提醒名额只在注入成立时消费（UsageWatch 的
-#     RemindProposal.commit）。形状探针（outer/inner）注册在注入器之内，
-#     审的是注入前的裁决。阶段边界做检查点压缩，避免 auto-compact 任务中段
+#     RemindProposal.commit）。阶段边界做检查点压缩，避免 auto-compact 任务中段
 #     任意截断；
 #   - metrics：逐回合流水按进程分片写 $DSH_HOME/cache/ctx-observe/ctx-observe.<pid>.jsonl
-#     （落盘根由 @deepseek-ai/dsh-home-paths 的 dshCachePath 单源解析；cache 是
+#     （落盘根由 @deepseek-ai/dsh-home-paths 的 dshHomePath("cache", …) 单源解析；cache 是
 #     "可丢弃的派生数据"目录，子目录是本包命名空间。单写者分片，避免并发进程在
 #     同一文件上截断重写互相丢行），
 #     GET /_dsh/ctx-observe/metrics 聚合全部分片按 ts 升序全量返回。

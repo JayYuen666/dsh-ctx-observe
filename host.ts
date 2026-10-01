@@ -22,8 +22,7 @@
 // 是用户数据目录里的违建。子目录是本包的命名空间：cache/ 各插件共用，读写与留存
 // 回收都只进 `cache/ctx-observe/`，别人的缓存既不被聚合、也不被回收。
 //
-// 分片纪律：metrics/audit 一律按 pid 分片
-// （ctx-observe.<pid>.jsonl / pre-step-audit.<pid>.jsonl）。Session.append
+// 分片纪律：metrics 一律按 pid 分片（ctx-observe.<pid>.jsonl）。Session.append
 // 在提交事件后同一同步帧里派发 session/event（core/session index.ts:744-770
 // 是同步洪流），本插件在其上做 IO；旧版"进程级单一 JSONL + 超限时
 // readFileSync+writeFileSync 截断重写"在并发进程下必然丢行/交错（A 重写期间
@@ -43,6 +42,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 // 0.1.7 设置面要求宿主 fork：只有 @deepseek-ai/schemastery 的 resolve 会把
@@ -76,7 +76,6 @@ import {
   DEFAULT_TOOL_INTERVAL,
   FALLBACK_WINDOW,
 } from "./lib/usage-watch.ts";
-import { findPreStepAnomalies } from "./lib/prestep-audit.ts";
 import { MESSAGES } from "./lib/messages.ts";
 import type { CtxObserveMessages } from "./lib/messages.ts";
 // host 侧文案语言跟官方 locale 插件的偏好同源：读它拥有的 settings 命名空间（未注册即中文）。
@@ -98,13 +97,16 @@ import { queryParam } from "@jayyuen66/dsh-plugin-shared/lib/http";
  */
 const PLUGIN_NAMESPACE = "ctx-observe";
 
-/** 官方 pre-step waterfall 的总线事件名（建议注入器与两枚审计探针都挂这条）。 */
+/** 官方 pre-step waterfall 的总线事件名（战略压缩建议注入器挂这条）。 */
 const PRE_STEP_EVENT = "agent/pre-step";
 
 const METRICS_PATH = "/_dsh/ctx-observe/metrics";
 
 /** 落盘文件名前缀（分片名 = `<prefix>.<pid>.jsonl`）。 */
 const METRICS_PREFIX = PLUGIN_NAMESPACE;
+/** 形状审计分片的前缀。本包不再写这种分片（两枚 pre-step 形状探针已移除），
+ *  仍留在留存回收的前缀表里，是为了让升级前落下的旧分片跟着 metrics 一起被回收，
+ *  而不是永久留在 `cache/ctx-observe/` 里。 */
 const AUDIT_PREFIX = "pre-step-audit";
 
 /**
@@ -135,11 +137,6 @@ function metricsDir(): string {
 /** 本进程独占的分片文件（单写者 → 追加与收缩都无跨进程竞态）。 */
 function shardFile(prefix: string): string {
   return path.join(metricsDir(), `${prefix}.${String(process.pid)}.jsonl`);
-}
-
-/** audit 分片落盘位置（与 metricsFile 同款惰性求值纪律）。 */
-function auditFile(): string {
-  return shardFile(AUDIT_PREFIX);
 }
 
 /** metrics 分片落盘位置。 */
@@ -449,12 +446,13 @@ function appendMetric(row: Record<string, unknown>, log: Log): void {
   }
 }
 
-/** 读一个分片的全部非空行。同步必需——webServer 端点 handler 为同步返回，
- *  端点读取必须在同一次响应内同步完成。 */
-function readShardLines(file: string): string[] {
-  return readFileSync(file, "utf8")
-    .split("\n")
-    .filter((line) => line.trim().length > 0);
+/** 读一个分片的全部非空行。webServer 的 handler 契约本就收 `void | Promise<void>`
+ *  （installed dsh-host-webserver `WebRoute.handler`），分发处 await 后另有 catch 兜底，
+ *  所以这里异步读是一次 GET 聚合全部分片时**唯一**能把活让给事件循环的形态：单分片上限
+ *  5MB，N 个分片的读与排序原本整段压在共享的 webServer 上。 */
+async function readShardLines(file: string): Promise<string[]> {
+  const text = await readFile(file, "utf8");
+  return text.split("\n").filter((line) => line.trim().length > 0);
 }
 
 /** 本包 cache 子目录内本插件前缀的全部分片：新版 `<prefix>.<pid>.jsonl` 与旧版
@@ -484,20 +482,22 @@ function tsOfLine(line: string): number {
  *  去截断（用户拍板"不为省 token 降能力"）：旧实现端点只回末 50 行，
  *  卡片与技能看到的永远只是碎片——改为全量返回；磁盘上限（trimMetricsFile
  *  5MB 保险丝）保持不变，那是磁盘卫生不是能力截断。 */
-function readMetricsSorted(): string[] {
+async function readMetricsSorted(): Promise<string[]> {
   try {
-    const lines: string[] = [];
-    for (const file of listShardFiles(METRICS_PREFIX)) {
-      lines.push(...readShardLines(file));
-    }
-    return lines.toSorted((left, right) => tsOfLine(left) - tsOfLine(right));
+    // 并发读而非逐个 await：分片数由留存回收兜着（默认 30 天，跑过几个进程就几个分片），
+    // 一次 GET 同时打开这点 fd 远低于进程上限；而逐个 await 会把 N 次读串成 N 段往返。
+    const shards = await Promise.all(
+      listShardFiles(METRICS_PREFIX).map((file) => readShardLines(file)),
+    );
+    return shards.flat().toSorted((left, right) => tsOfLine(left) - tsOfLine(right));
   } catch {
     return [];
   }
 }
 
-function readMetricsAll(): string {
-  return readMetricsSorted().join("\n");
+async function readMetricsAll(): Promise<string> {
+  const sorted = await readMetricsSorted();
+  return sorted.join("\n");
 }
 
 /** `?limit=` 出现但非法（非纯数字或 0）→ true，端点答 400。缺席（null）= 合法缺席。 */
@@ -505,8 +505,9 @@ function metricsLimitInvalid(raw: string | null): boolean {
   return raw !== null && (!/^\d+$/u.test(raw) || Number(raw) === 0);
 }
 
-function readMetricsLast(limit: number): string {
-  return readMetricsSorted().slice(-limit).join("\n");
+async function readMetricsLast(limit: number): Promise<string> {
+  const sorted = await readMetricsSorted();
+  return sorted.slice(-limit).join("\n");
 }
 
 /** 从 unknown 投影为未知元素数组（非数组 → null）。Array.isArray 的窄化产物是
@@ -848,7 +849,7 @@ interface InjectionOutcome {
  *     `{kind:'enter',messages:[...claimed, context]}`，agent-loop agent.ts:248-252），
  *     代价是用户消息静默蒸发——比少一条建议严重得多。
  *   - reject：下游否决了本 step，建议无意义。
- *   - messages 不是数组：畸形决策（正是 pre-step 探针在找的形状），不接管、
+ *   - messages 不是数组：畸形决策，不接管、
  *     不猜测它认领了什么。
  */
 function injectSuggestion(decisionRaw: unknown, suggestion: SuggestionMessage): InjectionOutcome {
@@ -953,10 +954,8 @@ interface UsageObserverDeps {
  * （[...claimed, context]）；下游监听器（model-selection /
  * session-checkpoint-policy）皆先 `const decision = await next()` 再改——
  * 本插件同契约，绝不丢弃下游消息。
- * 注册用 prepend（本监听在瀑布最外层）：① 这样注入看到的是全链合成后的决策，
- * 追加位置真的是消息末尾；② 两个审计探针必须注册在注入器之后（更内层），
- * 否则探针审的是注入后的裁决——审计 item 5 的掩码（enter-without-messages
- * 被伪装成干净的 msgsLen:1）。
+ * 注册用 prepend（本监听在瀑布最外层）：这样注入看到的是全链合成后的决策，
+ * 追加位置真的是消息末尾。
  * downstream 只调一次的纪律：下游含 compaction-basic（每次调用都执行
  * compactIfNeeded——会话折叠，非幂等）与 session-checkpoint-policy（每次
  * 调用 sessions.flush）等有状态监听器；若在 catch 里重调 downstream 会造成
@@ -982,44 +981,6 @@ function registerSuggestionInjector(svc: HostCtx, deps: SuggestionDeps, log: Log
     },
     { prepend: true },
   );
-}
-
-/**
- * pre-step 形状探针：定位间歇性 turn/end kind:error（reading 'length'，code=UNKNOWN）——
- * 判别矩阵见 lib/prestep-audit.ts 头注释。双探夹逼：外层先注册（普通 on
- * 即 push 到链尾，后注册者更内层 → 本探针在另一探针之外），内层后注册。
- * 两者都刻意落在建议注入器之内：Cordis 的 waterfall 从 index 0 起算最外层
- * （vendor/cordis/src/events.ts register(): prepend→unshift / on→push；
- * waterfall(): cbs.shift() 依次向内），若探针用 prepend 就会跑到注入器之外、
- * 审到注入后的裁决，把畸形决策掩成干净形状。
- * 纪律：纯观察——只 await next() 并逐字 passthrough；落盘失败吞错不抛；
- * 进程生命周期条数上限防膨胀。
- */
-function registerPreStepShapeProbes(svc: HostCtx): void {
-  let auditRows = 0;
-  const AUDIT_MAX_ROWS = 400;
-  const auditObserver =
-    (tag: string) =>
-    async (payload: unknown, next: () => Promise<unknown>): Promise<unknown> => {
-      // oxlint-disable-next-line node/callback-return -- waterfall next 为契约调用，结果需先经审计再透传
-      const decision = await next();
-      try {
-        if (auditRows < AUDIT_MAX_ROWS) {
-          for (const finding of findPreStepAnomalies(tag, payload, decision)) {
-            auditRows += 1;
-            appendShardLine(auditFile(), `${JSON.stringify({ ts: Date.now(), ...finding })}\n`);
-            if (auditRows >= AUDIT_MAX_ROWS) {
-              break;
-            }
-          }
-        }
-      } catch {
-        // 观测绝不打断回合（落盘失败=静默丢条，与 appendMetric 纪律一致）
-      }
-      return decision;
-    };
-  svc.on(PRE_STEP_EVENT, auditObserver("outer"));
-  svc.on(PRE_STEP_EVENT, auditObserver("inner"));
 }
 
 /** usage 观测：session/event 的 assistant/message（含 stream 回落）与
@@ -1177,7 +1138,9 @@ function registerMetricsEndpoint(svc: HostCtx, log: Log): void {
       const route: WebRoute = {
         kind: "exact",
         path: METRICS_PATH,
-        handler: (req, res) => {
+        // 异步 handler：官方契约收 `void | Promise<void>`，聚合全部分片的读与排序
+        // 让出事件循环，不必独占共享的 webServer。
+        async handler(req, res) {
           // 同源校验（F1 起交给 shared 的 trust 出口，本包那段 siteOf + 纯文本 403 一并收敛）：
           // 项目硬约束是所有插件端点须做 CORS 校验；GET 虽只读，但响应体是用量数据，
           // 被重绑定页面读到就是信息泄露，故照走三判据。
@@ -1196,7 +1159,8 @@ function registerMetricsEndpoint(svc: HostCtx, log: Log): void {
             return;
           }
           try {
-            const rows = rawLimit === null ? readMetricsAll() : readMetricsLast(Number(rawLimit));
+            const rows =
+              rawLimit === null ? await readMetricsAll() : await readMetricsLast(Number(rawLimit));
             res.writeHead(200, {
               "content-type": "text/plain; charset=utf-8",
               "cache-control": "no-store",
@@ -1360,7 +1324,6 @@ export function apply(ctx: Context, config: Config): void {
   };
 
   registerSuggestionInjector(svc, suggestionDeps, log);
-  registerPreStepShapeProbes(svc);
 
   registerUsageObserver(svc, {
     config,
