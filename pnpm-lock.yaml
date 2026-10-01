@@ -152,8 +152,8 @@ importers:
         specifier: 3.18.4
         version: 3.18.4
       '@jayyuen66/dsh-plugin-shared':
-        specifier: ^1.0.0
-        version: 1.0.0(@deepseek-ai/cordis@4.0.4)(eslint-plugin-sonarjs@4.2.2)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(vitest@5.0.2)
+        specifier: ^0.1.0
+        version: 0.1.0(@deepseek-ai/cordis@4.0.4)(eslint-plugin-sonarjs@4.2.2)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(vitest@5.0.2)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
@@ -502,8 +502,8 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@jayyuen66/dsh-plugin-shared@1.0.0':
-    resolution: {integrity: sha512-Eh3l68lyCJWpxGb1o9dRjqc0+tKpxoiOA2LvFqhOUvB3wmo6T7+Dsu8tQdwWcd4zJKhZWbDkdzMz/AKomiptoQ==}
+  '@jayyuen66/dsh-plugin-shared@0.1.0':
+    resolution: {integrity: sha512-JQNj33jlw3MptRMlRQIlrL7B77IRRSrJJpD6nqszCq6NjS3yOcKkZEHHMjrDUA9ZWzTLndkWcCQ1r4B74WR0Yg==}
     engines: {dsh: '>=0.2.0-rc.2'}
     peerDependencies:
       '@deepseek-ai/dsh': ^0.2.0-rc.2
@@ -1914,7 +1914,7 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
-  '@jayyuen66/dsh-plugin-shared@1.0.0(@deepseek-ai/cordis@4.0.4)(eslint-plugin-sonarjs@4.2.2)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(vitest@5.0.2)':
+  '@jayyuen66/dsh-plugin-shared@0.1.0(@deepseek-ai/cordis@4.0.4)(eslint-plugin-sonarjs@4.2.2)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(vitest@5.0.2)':
     dependencies:
       '@deepseek-ai/dsh-output-retention': 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)
     optionalDependencies:

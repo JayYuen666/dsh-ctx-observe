@@ -19,12 +19,12 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - name: 登录 registry（发布用 npm 站点的 access token，权限 Read and write）
+      - name: 校验 token 形态（只读不写盘）
         env:
           TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           TOKEN_TIDY="$(printf '%s' "$TOKEN" | tr -d '\r\n[:space:]')"
-          if [ -z "$TOKEN_TIDY" ]; then echo "TOKEN 是空的——secret 没配上？"; exit 1; fi
+          if [ -z "$TOKEN_TIDY" ]; then echo "NPM_TOKEN 是空的——去仓库 Settings → Secrets and variables → Actions 配上"; exit 1; fi
           if [ "$TOKEN" != "$TOKEN_TIDY" ]; then echo "注意：secret 里含空白/换行，已剔除后使用"; fi
           case "$TOKEN_TIDY" in
             npm_*) echo "token 形态：npm access token";;
@@ -37,9 +37,6 @@ jobs:
             echo "凭据里混进了非 token 字符（引号、说明文字之类）——请只贴 npm_ 开头那一串，不要带引号"
             exit 1
           fi
-          grep -v "registry.npmjs.org/:_authToken" "$HOME/.npmrc" > "$HOME/.npmrc.tmp" || true
-          if [ -f "$HOME/.npmrc.tmp" ]; then mv "$HOME/.npmrc.tmp" "$HOME/.npmrc"; fi
-          printf '//registry.npmjs.org/:_authToken=%s\n' "$TOKEN_TIDY" >> "$HOME/.npmrc"
       - name: registry 预检（身份与依赖库可见性）
         env:
           TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -53,4 +50,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
       # prepack 会重建 host.js/client.js/dist，产物不入库也发得出去
+      # 凭据走 NODE_AUTH_TOKEN：setup-node 配了 registry-url 之后会设
+      # NPM_CONFIG_USERCONFIG 指向它自己生成的那份 .npmrc，npm 只读那一份，
+      # $HOME/.npmrc 会被完全忽略——所以 token 必须以环境变量注入，不能写文件。
       - run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
